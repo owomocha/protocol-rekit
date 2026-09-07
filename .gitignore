@@ -1,0 +1,16 @@
+# captures never belong in the repo
+*.pcap
+*.pcapng
+
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# editor / os
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,29 @@
+name: ci
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: install dev deps
+        run: pip install -r requirements-dev.txt
+      - name: byte-compile every module
+        run: python -m py_compile rekit/*.py
+      - name: write the synthetic capture
+        run: python -m rekit.demo /tmp/tlm.pcap
+      - name: smoke-test the CLIs
+        run: |
+          python -m rekit.pcap /tmp/tlm.pcap
+          python -m rekit.framing /tmp/tlm.pcap --latency
+          python -m rekit.columns /tmp/tlm.pcap --tag TELE
+          python -m rekit.reassemble /tmp/tlm.pcap
+      - name: tests
+        run: python -m pytest -q

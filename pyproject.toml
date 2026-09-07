@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wire-re"
+version = "0.1.0"
+description = "A dependency-free toolkit for reverse-engineering a desktop app's binary TCP protocol from a capture and its Mach-O"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "owomocha" }]
+keywords = ["reverse-engineering", "pcap", "protocol", "arm64", "mach-o", "findcrypt"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Security",
+    "Topic :: System :: Networking :: Monitoring",
+]
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/owomocha/wire-re"
+
+[tool.setuptools]
+packages = ["rekit"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
