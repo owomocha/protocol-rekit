@@ -1,4 +1,4 @@
-from rekit.pcap import load_streams
+from rekit.pcap import iter_packets, load_streams
 
 
 def test_picks_server_and_splits_directions(capture):
@@ -22,3 +22,22 @@ def test_explicit_server_matches_autopick(capture):
     auto = load_streams(capture["path"])[2]
     pinned = load_streams(capture["path"], server="10.0.0.9:9443")[2]
     assert pinned["s2c_bytes"] == auto["s2c_bytes"]
+
+
+def test_pinned_server_tallies_the_same_flows(capture):
+    auto = load_streams(capture["path"])[2]
+    pinned = load_streams(capture["path"], server="10.0.0.9:9443")[2]
+    # pinning skips the counting pass, so the flow table must be built on the way
+    assert pinned["flows"] == auto["flows"]
+
+
+def test_short_or_unknown_files_are_rejected(tmp_path):
+    import pytest
+    short = tmp_path / "short.pcap"
+    short.write_bytes(b"\x00" * 10)
+    with pytest.raises(ValueError, match="too short"):
+        list(iter_packets(str(short)))
+    junk = tmp_path / "junk.pcap"
+    junk.write_bytes(b"\x00" * 64)
+    with pytest.raises(ValueError, match="unknown capture magic"):
+        list(iter_packets(str(junk)))

@@ -17,6 +17,8 @@ CLI:
 """
 from __future__ import annotations
 
+import mmap
+import os
 import socket
 import struct
 import sys
@@ -74,22 +76,26 @@ class Stream:
 
 
 def iter_packets(path: str):
-    """Yield (epoch_ts, linktype, frame_bytes) for pcap or pcapng input."""
+    """Yield (epoch_ts, linktype, frame_bytes) for pcap or pcapng input.
+
+    The file is mapped, not read: each packet is sliced out as the walk
+    reaches it, so a multi-hundred-MB capture costs about one packet of memory.
+    """
     with open(path, "rb") as fh:
-        blob = fh.read()
-    if len(blob) < 24:
-        raise ValueError("file too short to be a capture")
-    magic = blob[:4]
-    if magic in (b"\xa1\xb2\xc3\xd4", b"\xd4\xc3\xb2\xa1",
-                 b"\xa1\xb2\x3c\x4d", b"\x4d\x3c\xb2\xa1"):
-        yield from _iter_classic(blob, magic)
-    elif magic == b"\x0a\x0d\x0d\x0a":
-        yield from _iter_pcapng(blob)
-    else:
-        raise ValueError(f"unknown capture magic: {magic.hex()}")
+        if os.fstat(fh.fileno()).st_size < 24:
+            raise ValueError("file too short to be a capture")
+        with mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ) as blob:
+            magic = blob[:4]
+            if magic in (b"\xa1\xb2\xc3\xd4", b"\xd4\xc3\xb2\xa1",
+                         b"\xa1\xb2\x3c\x4d", b"\x4d\x3c\xb2\xa1"):
+                yield from _iter_classic(blob, magic)
+            elif magic == b"\x0a\x0d\x0d\x0a":
+                yield from _iter_pcapng(blob)
+            else:
+                raise ValueError(f"unknown capture magic: {magic.hex()}")
 
 
-def _iter_classic(blob: bytes, magic: bytes):
+def _iter_classic(blob, magic: bytes):
     little = magic in (b"\xd4\xc3\xb2\xa1", b"\x4d\x3c\xb2\xa1")
     nano = magic in (b"\xa1\xb2\x3c\x4d", b"\x4d\x3c\xb2\xa1")
     end = "<" if little else ">"
@@ -105,7 +111,7 @@ def _iter_classic(blob: bytes, magic: bytes):
         pos += incl
 
 
-def _iter_pcapng(blob: bytes):
+def _iter_pcapng(blob):
     pos, n, end = 0, len(blob), "<"
     linktypes: list[int] = []
     tsresol: list[int] = []
@@ -174,9 +180,9 @@ def _l3_payload(linktype: int, frame: bytes) -> bytes | None:
 def _tcp_segments(path: str, since: float | None, until: float | None):
     """Yield (src_ep, dst_ep, seq, payload, ts) for every TCP segment.
 
-    Endpoints are "ip:port" strings. Packets outside [since, until] are
-    dropped early so a multi-hundred-MB capture never has to live in memory
-    all at once.
+    Endpoints are "ip:port" strings. Nothing is retained between packets, so
+    this is safe on a multi-hundred-MB capture; [since, until] just skips the
+    parts you don't care about.
     """
     for ts, linktype, frame in iter_packets(path):
         if (since is not None and ts < since) or (until is not None and ts > until):
@@ -227,30 +233,34 @@ def load_streams(path: str, server: str | None = None,
                  until: float | None = None):
     """Reassemble one TCP conversation into (client->server, server->client, stats).
 
-    `server` pins the server endpoint as "ip" or "ip:port". If omitted, the
-    busiest flow in the capture is used and the server side is guessed.
+    `server` pins the server endpoint as "ip" or "ip:port". Without it the
+    busiest flow is used and the server side is guessed, which costs a first
+    pass over the capture that keeps nothing but per-flow byte counts. Either
+    way only the two streams of the conversation you asked for end up in
+    memory, never the whole capture.
     """
     counts: dict[tuple[str, str], int] = {}
-    segs = list(_tcp_segments(path, since, until))
-    for src, dst, _seq, payload, _ts in segs:
-        counts[(src, dst)] = counts.get((src, dst), 0) + len(payload)
-
-    if server is None:
+    pinned = server is not None
+    if not pinned:
+        for src, dst, _seq, payload, _ts in _tcp_segments(path, since, until):
+            counts[(src, dst)] = counts.get((src, dst), 0) + len(payload)
         server = _pick_server(counts)
-    server_has_port = server is not None and ":" in server
-
-    def is_server(ep: str) -> bool:
-        return ep == server if server_has_port else ep.rsplit(":", 1)[0] == server
 
     c2s = Stream("client->server")
     s2c = Stream("server->client")
-    for src, dst, seq, payload, ts in segs:
-        if server is None:
-            continue
-        if is_server(src):
-            s2c.append(seq, payload, ts)
-        elif is_server(dst):
-            c2s.append(seq, payload, ts)
+    if server is not None:
+        exact = ":" in server
+
+        def is_server(ep: str) -> bool:
+            return ep == server if exact else ep.rsplit(":", 1)[0] == server
+
+        for src, dst, seq, payload, ts in _tcp_segments(path, since, until):
+            if pinned:                      # no counting pass happened; tally here
+                counts[(src, dst)] = counts.get((src, dst), 0) + len(payload)
+            if is_server(src):
+                s2c.append(seq, payload, ts)
+            elif is_server(dst):
+                c2s.append(seq, payload, ts)
 
     stats = {
         "server": server,
