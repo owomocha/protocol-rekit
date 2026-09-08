@@ -118,21 +118,50 @@ def thin_macho(data: bytes, cpu_type: int = CPU_TYPE_ARM64) -> bytes:
     raise ValueError("no arm64 slice in this universal binary")
 
 
-def macho_segments(data: bytes) -> list[tuple[int, int, int]]:
-    """Return (vmaddr, fileoff, size) for each LC_SEGMENT_64 in a 64-bit Mach-O."""
+LC_SEGMENT_64 = 0x19
+
+
+def _load_commands(data: bytes):
+    """Yield (cmd, offset) for each load command of a 64-bit Mach-O."""
     magic = struct.unpack_from("<I", data, 0)[0]
     if magic not in (0xFEEDFACF, 0xCFFAEDFE):
         raise ValueError("not a 64-bit Mach-O")
     ncmds = struct.unpack_from("<I", data, 16)[0]
     pos = 32
-    segs = []
     for _ in range(ncmds):
         cmd, cmdsize = struct.unpack_from("<II", data, pos)
-        if cmd == 0x19:  # LC_SEGMENT_64
+        yield cmd, pos
+        pos += cmdsize
+
+
+def macho_segments(data: bytes) -> list[tuple[int, int, int]]:
+    """Return (vmaddr, fileoff, size) for each LC_SEGMENT_64."""
+    segs = []
+    for cmd, pos in _load_commands(data):
+        if cmd == LC_SEGMENT_64:
             vmaddr, _vmsize, fileoff, filesize = struct.unpack_from("<QQQQ", data, pos + 24)
             segs.append((vmaddr, fileoff, filesize))
-        pos += cmdsize
     return segs
+
+
+def macho_text_section(data: bytes) -> tuple[int, int, int] | None:
+    """(addr, fileoff, size) of __TEXT,__text -- the code alone.
+
+    The __TEXT segment also carries __cstring, __const and the unwind tables,
+    and decoding those as instructions turns up adrp/add "pairs" that point
+    nowhere useful. None when there is no such section (a shared-cache slice).
+    """
+    for cmd, pos in _load_commands(data):
+        if cmd != LC_SEGMENT_64:
+            continue
+        nsects = struct.unpack_from("<I", data, pos + 64)[0]
+        for k in range(nsects):
+            sect = pos + 72 + k * 80
+            sectname, segname = struct.unpack_from("<16s16s", data, sect)
+            if segname.rstrip(b"\0") == b"__TEXT" and sectname.rstrip(b"\0") == b"__text":
+                addr, size, offset = struct.unpack_from("<QQI", data, sect + 32)
+                return addr, offset, size
+    return None
 
 
 def va_to_offset(segs: list[tuple[int, int, int]], va: int) -> int | None:
@@ -147,7 +176,7 @@ def strings_in_macho(path: str, limit: int = 400) -> list[tuple[int, str]]:
     with open(path, "rb") as fh:
         data = thin_macho(fh.read())
     segs = macho_segments(data)
-    text = next((s for s in segs if s[0] and s[2]), None)
+    text = macho_text_section(data) or next((s for s in segs if s[0] and s[2]), None)
     if text is None:
         return []
     vmaddr, fileoff, size = text
