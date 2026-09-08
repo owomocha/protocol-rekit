@@ -23,25 +23,35 @@ class Signature:
     pattern: bytes
 
 
+def _words(name: str, note: str, words: tuple[int, ...], width: int = 4) -> list[Signature]:
+    """A constant that lives in a word array, in both byte orders.
+
+    The same table compiles to different bytes on little- and big-endian
+    targets, and some code stores it big-endian on purpose, so match both and
+    say which one hit -- that alone hints at how the code was built.
+    """
+    le = b"".join(w.to_bytes(width, "little") for w in words)
+    be = b"".join(w.to_bytes(width, "big") for w in words)
+    return [Signature(name, f"{note}, little-endian words", le),
+            Signature(name, f"{note}, big-endian words", be)]
+
+
 # Every pattern below is a published constant, verifiable in the relevant spec
-# or reference implementation.
+# or reference implementation. The CRC-32 one is also checked in the tests
+# against a table regenerated from the polynomial: an earlier version had one
+# wrong byte in it and, of course, never matched anything.
 SIGNATURES: list[Signature] = [
     Signature("AES", "S-box (byte-oriented)",
               bytes.fromhex("637c777bf26b6fc53001672bfed7ab76")),
-    Signature("AES", "Te0 table, little-endian (table-driven)",
-              bytes.fromhex("a56363c6")),
-    Signature("AES", "Te0 table, big-endian",
-              bytes.fromhex("c66363a5")),
     Signature("AES", "round constants (Rcon)",
               bytes.fromhex("01020408102040801b36")),
-    Signature("SHA-256", "initial hash words",
-              bytes.fromhex("6a09e667bb67ae85")),
-    Signature("SHA-1", "initial hash words",
-              bytes.fromhex("67452301efcdab8998badcfe")),
-    Signature("MD5", "K[0] sine constant",
-              bytes.fromhex("78a46ad7")),
-    Signature("CRC-32", "IEEE polynomial table",
-              bytes.fromhex("000000009630077728610eee")),
+    *_words("AES", "Te0 table (table-driven)", (0xC66363A5, 0xF87C7C84)),
+    *_words("SHA-256", "initial hash words", (0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A)),
+    *_words("SHA-512", "initial hash words", (0x6A09E667F3BCC908, 0xBB67AE8584CAA73B), width=8),
+    *_words("SHA-1", "initial hash words", (0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0)),
+    *_words("MD5", "K[0..1] sine constants", (0xD76AA478, 0xE8C7B756)),
+    *_words("CRC-32", "IEEE table, first entries", (0x00000000, 0x77073096, 0xEE0E612C, 0x990951BA)),
+    Signature("ChaCha20", "sigma constant", b"expand 32-byte k"),
 ]
 
 
