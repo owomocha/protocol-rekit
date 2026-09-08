@@ -1,6 +1,6 @@
-# wire-re
+# protocol-rekit
 
-[English](README.md) · [![ci](https://github.com/owomocha/wire-re/actions/workflows/ci.yml/badge.svg)](https://github.com/owomocha/wire-re/actions)
+[English](README.md) · [![ci](https://github.com/owomocha/protocol-rekit/actions/workflows/ci.yml/badge.svg)](https://github.com/owomocha/protocol-rekit/actions)
 
 クローズドソースのデスクトップアプリが平文でサーバと喋っているとき、その中身を読むための道具。標準ライブラリだけ——pcap はヘッダさえ読めば長さ前置きのレコード列でしかないし、作業マシンごとに scapy や tshark を入れたくない。
 

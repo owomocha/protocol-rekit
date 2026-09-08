@@ -3,7 +3,7 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "wire-re"
+name = "protocol-rekit"
 version = "0.1.0"
 description = "A dependency-free toolkit for reverse-engineering a desktop app's binary TCP protocol from a capture and its Mach-O"
 readme = "README.md"
@@ -20,7 +20,7 @@ classifiers = [
 dependencies = []
 
 [project.urls]
-Repository = "https://github.com/owomocha/wire-re"
+Repository = "https://github.com/owomocha/protocol-rekit"
 
 [tool.setuptools]
 packages = ["rekit"]

@@ -1,6 +1,6 @@
-# wire-re
+# protocol-rekit
 
-[日本語](README.ja.md) · [![ci](https://github.com/owomocha/wire-re/actions/workflows/ci.yml/badge.svg)](https://github.com/owomocha/wire-re/actions)
+[日本語](README.ja.md) · [![ci](https://github.com/owomocha/protocol-rekit/actions/workflows/ci.yml/badge.svg)](https://github.com/owomocha/protocol-rekit/actions)
 
 Tools for reading how a closed-source desktop app talks to its server, when the traffic is cleartext. Standard library only — a pcap is a length-prefixed record stream once you've read the header, and I'd rather not put scapy or tshark on every machine I work from.
 
