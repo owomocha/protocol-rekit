@@ -141,7 +141,8 @@ def _clock_in_tail(text: str, tail: int, upper: float | None) -> int | None:
     return best
 
 
-def measure_latency(frames: list[Frame], tail: int = 48) -> dict[str, dict]:
+def measure_latency(frames: list[Frame], tail: int = 48,
+                    utc_offset: float | None = None) -> dict[str, dict]:
     """Delay between an in-band HHMMSS clock and the packet's arrival time.
 
     Returns per-tag stats plus a granularity flag: if the seconds digit is
@@ -149,13 +150,21 @@ def measure_latency(frames: list[Frame], tail: int = 48) -> dict[str, dict]:
     compute from it is just up to 59s of quantization -- not a real delay.
     Reporting that distinction is the whole point; without it you'd claim a
     minute-stamped feed is seconds slow when it isn't.
+
+    `utc_offset` is the zone the in-band clock is written in, in hours. Leave
+    it None when the capture machine ran in that zone; otherwise a feed
+    stamped in Tokyo and captured in New York is thirteen hours "late" and
+    every frame falls outside the plausible window.
     """
     per_tag: dict[str, list[float]] = defaultdict(list)
     sec_digit: dict[str, Counter] = defaultdict(Counter)
     last_seen: dict[tuple[str, str], int] = {}
     for f in frames:
-        dt = datetime.datetime.fromtimestamp(f.ts)
-        wall = dt.hour * 3600 + dt.minute * 60 + dt.second + dt.microsecond / 1e6
+        if utc_offset is None:
+            dt = datetime.datetime.fromtimestamp(f.ts)
+            wall = dt.hour * 3600 + dt.minute * 60 + dt.second + dt.microsecond / 1e6
+        else:
+            wall = (f.ts + utc_offset * 3600) % 86400
         secs = _clock_in_tail(f.text, tail, wall)
         if secs is None:
             continue
@@ -200,6 +209,8 @@ def main() -> None:
     ap.add_argument("pcap")
     ap.add_argument("--server")
     ap.add_argument("--latency", action="store_true")
+    ap.add_argument("--utc-offset", type=float, metavar="HOURS",
+                    help="zone of the in-band clock (9 for Tokyo); default: this machine's")
     args = ap.parse_args()
 
     send, recv = frames_from_pcap(args.pcap, args.server)
@@ -208,7 +219,7 @@ def main() -> None:
     if args.latency:
         print("\n=== feed latency (in-band clock vs arrival) ===")
         print(f"{'tag':<8}{'prec':<8}{'n':>6}{'min':>8}{'median':>9}{'max':>8}")
-        for tag, st in sorted(measure_latency(recv).items()):
+        for tag, st in sorted(measure_latency(recv, utc_offset=args.utc_offset).items()):
             print(f"{tag:<8}{st['precision']:<8}{st['n']:>6}"
                   f"{st['min']:>7.2f}s{st['median']:>8.2f}s{st['max']:>7.2f}s")
         print("note: 'minute' precision rows are quantization, not real delay")
