@@ -53,11 +53,19 @@ $ python -m rekit.arm64 /bin/ls | head -4
 
 ```
 $ python -m rekit.findcrypt "$(brew --prefix openssl)/lib/libcrypto.dylib"
-0x00239800  AES      Te0 table, little-endian (table-driven)
-found: AES x1
+0x00004e10  SHA-256  initial hash words, little-endian words
+0x00226800  AES      Te0 table (table-driven), little-endian words
+0x002339a0  ChaCha20 sigma constant
+0x002339c0  ChaCha20 sigma constant
+0x002f9340  SHA-256  initial hash words, little-endian words
+0x002f9720  SHA-512  initial hash words, little-endian words
+0x002ff340  SHA-512  initial hash words, little-endian words
+0x002ff388  SHA-256  initial hash words, little-endian words
+
+found: AES x1, ChaCha20 x2, SHA-256 x3, SHA-512 x2
 ```
 
-findcrypt/signsrch と同系統を、信頼できる署名に絞ったもの。同定するだけで触らない。（最近の macOS はシステム暗号を dyld 共有キャッシュに置くので、静的に埋め込んだもの——上の Homebrew OpenSSL——を走査する。）
+ワード表は両方のバイト順で照合し、どちらで当たったかを注記に出す。findcrypt/signsrch と同系統を、信頼できる署名に絞ったもの。同定するだけで触らない。（最近の macOS はシステム暗号を dyld 共有キャッシュに置くので、静的に埋め込んだもの——上の Homebrew OpenSSL——を走査する。）
 
 ## 残り
 

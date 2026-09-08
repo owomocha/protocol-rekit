@@ -53,11 +53,19 @@ Which crypto is linked in, before reading any of it — primitives can't omit th
 
 ```
 $ python -m rekit.findcrypt "$(brew --prefix openssl)/lib/libcrypto.dylib"
-0x00239800  AES      Te0 table, little-endian (table-driven)
-found: AES x1
+0x00004e10  SHA-256  initial hash words, little-endian words
+0x00226800  AES      Te0 table (table-driven), little-endian words
+0x002339a0  ChaCha20 sigma constant
+0x002339c0  ChaCha20 sigma constant
+0x002f9340  SHA-256  initial hash words, little-endian words
+0x002f9720  SHA-512  initial hash words, little-endian words
+0x002ff340  SHA-512  initial hash words, little-endian words
+0x002ff388  SHA-256  initial hash words, little-endian words
+
+found: AES x1, ChaCha20 x2, SHA-256 x3, SHA-512 x2
 ```
 
-Same family as findcrypt/signsrch, cut to signatures I trust. It identifies primitives; it doesn't touch them. (Recent macOS keeps system crypto in the dyld shared cache, so scan something that statically embeds it — the Homebrew OpenSSL above does.)
+Word tables are matched in both byte orders and the note says which one hit. Same family as findcrypt/signsrch, cut to signatures I trust. It identifies primitives; it doesn't touch them. (Recent macOS keeps system crypto in the dyld shared cache, so scan something that statically embeds it — the Homebrew OpenSSL above does.)
 
 ## the rest
 

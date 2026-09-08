@@ -67,5 +67,14 @@ $ python -m rekit.arm64 /bin/ls | head -3
 0x0001000048fe  'COLUMNS'
 
 $ python -m rekit.findcrypt "$(brew --prefix openssl)/lib/libcrypto.dylib"
-0x00239800  AES      Te0 table, little-endian (table-driven)
+0x00004e10  SHA-256  initial hash words, little-endian words
+0x00226800  AES      Te0 table (table-driven), little-endian words
+0x002339a0  ChaCha20 sigma constant
+0x002339c0  ChaCha20 sigma constant
+0x002f9340  SHA-256  initial hash words, little-endian words
+0x002f9720  SHA-512  initial hash words, little-endian words
+0x002ff340  SHA-512  initial hash words, little-endian words
+0x002ff388  SHA-256  initial hash words, little-endian words
+
+found: AES x1, ChaCha20 x2, SHA-256 x3, SHA-512 x2
 ```
